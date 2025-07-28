@@ -27,13 +27,13 @@ The script automatically collects and logs:
 Example Output:
 
 ✅ (Username) Contributions:
-Mana Dust: 447429836446
-Elemental Shards: 5132979546
-Codex: 836
-Fish: 17637961736
-Wood: 5514480
-Iron: 5902901
-Battle XP: 7512765161
+- Mana Dust: 447429836446
+- Elemental Shards: 5132979546
+- Codex: 836
+- Fish: 17637961736
+- Wood: 5514480
+- Iron: 5902901
+- Battle XP: 7512765161
 
 
 ## 🚀 Installation
