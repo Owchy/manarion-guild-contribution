@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Manarion Guild Contributions Logger
 // @namespace    http://tampermonkey.net/
-// @version      2.4
+// @version      2.7
 // @description  Log total contributions for each guild member and export to CSV
 // @match        https://manarion.com/guild*
 // @grant        none
@@ -43,16 +43,16 @@
 
     function parseNumber(str) {
         if (!str) return '';
-        str = str.trim();
-        if (/^-?[\d,.]+$/.test(str)) return str.replace(/,/g, '');
+        str = str.trim().replace(/,/g, '');
         const suffixes = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12 };
-        const match = str.match(/^(-?[\d,.]+)([KMBT])$/);
+        const match = str.match(/^(-?[\d.]+)([KMBT])?$/);
         if (match) {
-            const num = parseFloat(match[1].replace(/,/g, ''));
+            const num = parseFloat(match[1]);
             const mult = suffixes[match[2]] || 1;
             return Math.round(num * mult).toString();
         }
-        return str;
+        const digitsOnly = str.replace(/[^\d.-]/g, '');
+        return digitsOnly;
     }
 
     function downloadCSV(data) {
@@ -71,26 +71,63 @@
         document.body.removeChild(link);
     }
 
-    function createLogPanel() {
-        const panel = document.createElement('div');
-        panel.id = 'contrib-log-panel';
-        Object.assign(panel.style, {
-            position: 'fixed', bottom: '60px', right: '10px', zIndex: 9999,
-            background: '#111', color: '#fff', padding: '10px', maxHeight: '200px',
-            overflowY: 'auto', width: '300px', borderRadius: '8px', fontSize: '12px',
-            boxShadow: '0 0 10px rgba(0,0,0,0.5)'
-        });
-        panel.textContent = 'Contribution Log:';
-        document.body.appendChild(panel);
-    }
+    function createResultsModal(data) {
+        const existing = document.getElementById('contrib-results-modal');
+        if (existing) existing.remove();
 
-    function logToPanel(text) {
-        const panel = document.getElementById('contrib-log-panel');
-        if (panel) {
-            const line = document.createElement('div');
-            line.textContent = text;
-            panel.appendChild(line);
-        }
+        const modal = document.createElement('div');
+        modal.id = 'contrib-results-modal';
+        Object.assign(modal.style, {
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            zIndex: 10000, background: '#1e1e1e', color: '#fff', padding: '20px',
+            maxHeight: '80vh', overflowY: 'auto', width: '700px', borderRadius: '10px',
+            boxShadow: '0 0 15px rgba(0,0,0,0.5)', fontFamily: 'monospace'
+        });
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Close';
+        Object.assign(closeBtn.style, {
+            float: 'right', background: '#e74c3c', color: '#fff',
+            border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer'
+        });
+        closeBtn.addEventListener('click', () => modal.remove());
+
+        const header = document.createElement('h3');
+        header.textContent = 'Guild Contributions Summary';
+
+        const table = document.createElement('table');
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['Name', ...contributionFields].forEach(h => {
+            const th = document.createElement('th');
+            th.textContent = h;
+            th.style.borderBottom = '1px solid #999';
+            th.style.padding = '4px';
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+
+        const tbody = document.createElement('tbody');
+        data.forEach(entry => {
+            const row = document.createElement('tr');
+            ['Name', ...contributionFields].forEach(key => {
+                const td = document.createElement('td');
+                td.textContent = entry[key] || '';
+                td.style.padding = '4px';
+                row.appendChild(td);
+            });
+            tbody.appendChild(row);
+        });
+
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        modal.appendChild(closeBtn);
+        modal.appendChild(header);
+        modal.appendChild(table);
+        document.body.appendChild(modal);
     }
 
     async function runContributionLogger() {
@@ -152,13 +189,19 @@
 
                 const contribLines = header.querySelectorAll('div');
                 for (const line of contribLines) {
-                    const labelEl = line.querySelector('span');
-                    const valueEl = line.querySelector('span[title]');
-                    const label = labelEl?.textContent?.replace(/\[|\]/g, '') || line.textContent.split(' ')[0];
-                    const rawValue = valueEl?.getAttribute('title') || '';
-                    const value = parseNumber(rawValue);
-                    if (label && value && contributionFields.includes(label)) {
-                        contributions[label] = value;
+                    const spans = line.querySelectorAll('span');
+                    if (spans.length === 2) {
+                        const labelRaw = spans[0].textContent || '';
+                        const label = labelRaw.replace(/\[|\]/g, '').trim();
+                        const valueRaw = spans[1].getAttribute('title') || spans[1].textContent || '';
+                        const value = parseNumber(valueRaw);
+                        if (label && contributionFields.includes(label)) {
+                            contributions[label] = value;
+                        }
+                    } else if (spans.length === 0 && line.textContent.includes('Battle XP')) {
+                        const raw = line.textContent.split('Battle XP')[1].trim();
+                        const value = parseNumber(raw);
+                        contributions['Battle XP'] = value;
                     }
                 }
 
@@ -179,7 +222,8 @@
 
         console.log("=== Guild Contributions Log ===");
         log.forEach(entry => console.log(entry));
-        alert("Contribution log complete. Check on-screen panel and console for details.");
+        createResultsModal(contributionsData);
+        alert("Contribution log complete. Results shown on-screen and console.");
     }
 
     const container = document.createElement('div');
@@ -207,6 +251,28 @@
     container.appendChild(fetchBtn);
     container.appendChild(exportBtn);
     document.body.appendChild(container);
+
+    function createLogPanel() {
+        const panel = document.createElement('div');
+        panel.id = 'contrib-log-panel';
+        Object.assign(panel.style, {
+            position: 'fixed', bottom: '60px', right: '10px', zIndex: 9999,
+            background: '#111', color: '#fff', padding: '10px', maxHeight: '200px',
+            overflowY: 'auto', width: '300px', borderRadius: '8px', fontSize: '12px',
+            boxShadow: '0 0 10px rgba(0,0,0,0.5)'
+        });
+        panel.textContent = 'Contribution Log:';
+        document.body.appendChild(panel);
+    }
+
+    function logToPanel(text) {
+        const panel = document.getElementById('contrib-log-panel');
+        if (panel) {
+            const line = document.createElement('div');
+            line.textContent = text;
+            panel.appendChild(line);
+        }
+    }
 
     createLogPanel();
 })();
