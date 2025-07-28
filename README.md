@@ -26,7 +26,7 @@ The script automatically collects and logs:
 
 Example Output:
 
-✅ Kiira Contributions:
+✅ (Username) Contributions:
 Mana Dust: 447429836446
 Elemental Shards: 5132979546
 Codex: 836
