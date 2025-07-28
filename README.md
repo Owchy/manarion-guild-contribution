@@ -46,7 +46,6 @@ Battle XP: 7512765161
 
 ## 📌 Notes
 
-- The script pauses between members (3 seconds) to mimic human interaction and avoid detection.
 - It requires the guild member list to be fully loaded before use.
 
 ## 🛡 Disclaimer
